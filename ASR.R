@@ -48,14 +48,23 @@ dev.off()
 #Extract collaboration network
 library(bibliometrix)
 library(network)
+library(sna)
+set.seed(2017)
 
+#Row projection (authors that appear on common papers)
 g2<-cocMatrix(r1.df,type="matrix")
+
 g2.net<-as.network(t(g2)%*%g2,directed=FALSE)
 set.vertex.attribute(g2.net,"vertex.names",colnames(g2))
 set.edge.value(g2.net,"freq",t(g2)%*%g2)
 
+#Col projection (papers that share common authors)
+g3.net<-as.network(g2%*%t(g2),directed=FALSE)
+set.vertex.attribute(g3.net,"vertex.names",r1.df$TI)
+set.edge.value(g3.net,"freq",g2%*%t(g2))
+
 #Now, induce subgraphs from each component, dropping isolates
-# ten were randomly spot-checked in WoS and were accurate
+# ten were randomly spot-checked in row proj in WoS and were accurate
 TheIsos<-(g2.net%v%"vertex.names")[isolates(g2.net)]
 delete.vertices(g2.net,isolates(g2.net))
 	
@@ -69,6 +78,28 @@ for(i in 1:nc){
 }
 
 g2.cg2<-g2.comps[order(sapply(g2.comps,network.size),decreasing=TRUE)]
+
+TheIsos<-(g3.net%v%"vertex.names")[isolates(g3.net)]
+delete.vertices(g3.net,isolates(g3.net))
+
+g3.comps<-list()
+nc<-components(g3.net)
+g3.cd<-component.dist(g3.net)
+g3.net%v%"color"<-rainbow(nc)[g3.cd$membership]
+
+for(i in 1:nc){
+ g3.comps[[i]]<-get.inducedSubgraph(g3.net,v=which(g3.cd$membership%in%i))
+}
+
+g3.cg3<-g3.comps[order(sapply(g3.comps,network.size),decreasing=TRUE)]
+
+#Rename to intuitive objects and save.
+ authXauth<-g2.net
+ authXauth.comps<-g2.cg2
+ paperXpaper.comps<-g3.cg3
+ paperXpaper<-g3.net
+ save(authXauth,authXauth.comps,paperXpaper,paperXpaper.comps,file="ASRNetworks> data",compress="xz")
+
 
 #Write out the pdf
 pdf("ASRNets.pdf",width=12,height=10,pointsize=12)
